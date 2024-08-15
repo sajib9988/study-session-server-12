@@ -90,7 +90,7 @@ const verifyAdmin = async (req, res, next) => {
         // Update user
         app.put('/users',verifyToken, async (req, res) => {
             const { email, role, status } = req.body;
-            console.log('req.body',req.body)
+            // console.log('req.body',req.body)
             const result = await userCollection.updateOne(
                 { email },
                 { $set: { role, status } },
@@ -137,7 +137,7 @@ app.get('/search', async (req, res) => {
             { email: { $regex: search, $options: 'i' } }
           ]
         }).toArray();
-    console.log('req', req.query);
+    // console.log('req', req.query);
 
     // const result = await userCollection.find(query).toArray();
     console.log(result)
@@ -176,21 +176,74 @@ app.patch('/users/:id/role', async (req, res) => {
     res.send(result);
  })
 
-// for All Session
- app.get('/session-collection',verifyToken, verifyAdmin,  async(req, res)=>{
+// for All Session for home page
+ app.get('/all-collection',  async(req, res)=>{
     const result = await studySessionCollection.find().toArray();
-    console.log(result);
+    // console.log(result);
     res.send(result);
  })
+ app.get('/all-collection/:id', async (req,res)=>{
+    const id = req.params.id;
+    const result = await studySessionCollection.findOne({_id: new ObjectId(id)});
+    res.send(result);
+ })
+
+
+
+
+
+//  for admin
+ app.get('/session-collection',verifyToken, verifyAdmin,  async(req, res)=>{
+    const result = await studySessionCollection.find().toArray();
+    // console.log(result);
+    res.send(result);
+ })
+// for admin
+app.patch('/session-fee/:id',verifyToken, verifyAdmin,  async (req, res) => {
+    const id = req.params.id;
+    const { sessionFee, status } = req.body;
+    console.log('Body:', req.body);
+    const filter = { _id: new ObjectId(id) };  // Convert `id` to ObjectId for MongoDB
+
+    const updateDoc = {
+        $set: {
+            sessionFee: sessionFee,
+            status: status,
+        }
+    };
+    console.log(updateDoc)
+
+    const result = await studySessionCollection.updateOne(filter, updateDoc);
+    console.log('Update Result:', result);
+    res.send(result);
+});
 
 
 // for Specific user  means tutor
  app.get('/study-session/:email', verifyToken, async (req, res) => {
     const email = req.params.email;
-    const result = await studySessionCollection.findOne({ email });
+    const result = await studySessionCollection.find({ 'tutor.email': email }).toArray();
     res.send(result);
 });
 
+// for database update by tutor
+app.put('/study-session/:id',verifyToken, async (req, res)=>{
+    const sessionId= req.params.id;
+    const sessionData = req.body;
+    const result= await studySessionCollection.updateOne(
+        {_id: new ObjectId(sessionId)},
+        {$set:sessionData}
+    );
+    res.send(result);
+})  
+
+app.delete('/study-delete/:id',verifyToken, async(req, res)=>{
+    const sessionId= req.params.id;
+    const result = await studySessionCollection.deleteOne({ _id: new ObjectId(sessionId)})
+    res.send(result);
+})
+
+// profile related 
 
 
 
@@ -201,9 +254,19 @@ app.patch('/users/:id/role', async (req, res) => {
 
 
 
-
-
-        // Confirm a successful connection
+       
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  // Confirm a successful connection
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } catch (err) {
         console.error('Error connecting to MongoDB:', err);
