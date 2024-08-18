@@ -60,15 +60,32 @@ const verifyAdmin = async (req, res, next) => {
   const email = req.user.email;
   const query = { email: email };
   const user = await userCollection.findOne(query);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role.toLowerCase()=== 'admin';
   if (!isAdmin) {
       return res.status(403).send({ message: 'Forbidden access' });
   }
   next();
+
 };
+
+const tutorVerify = async (req, res, next) => {
+        const tutorEmail = req.user.email; // Extract email from the decoded token
+        const query = { email: tutorEmail }; // Query the database using the extracted email
+        const tutor = await userCollection.findOne(query); // Fetch the user document from the collection
+        const isTutor = tutor?.role.toLowerCase() === 'tutor';
+        if (!isTutor) {
+            return res.status(403).send({ message: 'Forbidden access' });
+        }
+       next();
+    
+};
+
+
+
         // Access the database and collection using the client
         const userCollection = client.db("studyDb").collection("users");
         const studySessionCollection = client.db("studyDb").collection("studySessions");
+        const materialCollection=client.db('studyDb').collection('materialsCollection')
 
         // Add new user
         app.post('/users', async (req, res) => {
@@ -117,7 +134,33 @@ const verifyAdmin = async (req, res, next) => {
             const result = await userCollection.findOne({ email });
             res.send(result);
         });
+// become a for new tutor
 
+app.put('/tutors/:email', verifyToken,  async (req, res) => {
+    const email = req.params.email;
+    const updateData = req.body;
+
+    // Check if the user with the given email is already a tutor
+    const existingTutor = await userCollection.findOne({ email, role: 'Tutor' });
+    if (existingTutor) {
+        return res.status(400).send({ message: 'User is already a Tutor' });
+    }
+
+    // Update the user's data
+    const result = await userCollection.updateOne(
+        { email }, // Filter by email
+        { $set: updateData } // Update with the new data
+    );
+
+    res.send(result);
+    console.log(result);
+});
+// for data get
+app.get('/tutors', async (req,res)=>{
+    const result = await userCollection.find({role: 'Tutor'}).toArray();
+    res.send(result);
+    console.log(result)
+})
 
 //  search option 
 app.get('/search', async (req, res) => {
@@ -140,7 +183,7 @@ app.get('/search', async (req, res) => {
     // console.log('req', req.query);
 
     // const result = await userCollection.find(query).toArray();
-    console.log(result)
+    // console.log(result)
     res.send(result);
   });
 
@@ -170,7 +213,7 @@ app.patch('/users/:id/role', async (req, res) => {
   });
   
 // for All Study session collection
- app.post('/study-session', async(req, res)=>{
+ app.post('/study-session', verifyToken, tutorVerify, async(req, res)=>{
     const sessionData =req.body;
     const result = await studySessionCollection.insertOne(sessionData);
     res.send(result);
@@ -178,11 +221,12 @@ app.patch('/users/:id/role', async (req, res) => {
 
 // for All Session for home page
  app.get('/all-collection',  async(req, res)=>{
-    const result = await studySessionCollection.find().toArray();
-    // console.log(result);
+    const result = await studySessionCollection.find({ status: 'accepted' }).toArray();
     res.send(result);
  })
- app.get('/all-collection/:id', async (req,res)=>{
+
+ 
+ app.get('/all-collection/:id',verifyToken,tutorVerify, async (req,res)=>{
     const id = req.params.id;
     const result = await studySessionCollection.findOne({_id: new ObjectId(id)});
     res.send(result);
@@ -211,16 +255,16 @@ app.patch('/session-fee/:id',verifyToken, verifyAdmin,  async (req, res) => {
             status: status,
         }
     };
-    console.log(updateDoc)
+    // console.log(updateDoc)
 
     const result = await studySessionCollection.updateOne(filter, updateDoc);
-    console.log('Update Result:', result);
+    // console.log('Update Result:', result);
     res.send(result);
 });
 
 
 // for Specific user  means tutor
- app.get('/study-session/:email', verifyToken, async (req, res) => {
+ app.get('/study-session/:email', verifyToken,tutorVerify, async (req, res) => {
     const email = req.params.email;
     const result = await studySessionCollection.find({ 'tutor.email': email }).toArray();
     res.send(result);
@@ -240,6 +284,38 @@ app.put('/study-session/:id',verifyToken, async (req, res)=>{
 app.delete('/study-delete/:id',verifyToken, async(req, res)=>{
     const sessionId= req.params.id;
     const result = await studySessionCollection.deleteOne({ _id: new ObjectId(sessionId)})
+    res.send(result);
+})
+// for get data by gmail tutor for session id Need 
+app.get('/tutor/studySessions/:email', verifyToken, tutorVerify, async (req, res) => {
+    const { email } = req.params;
+    const { email: userEmail } = req.user;
+  
+    if (email !== userEmail) {
+      return res.status(403).send({ message: 'Unauthorized access' });
+    }
+  
+    const result = await studySessionCollection.find({ 'tutor.email': userEmail }).toArray();
+    res.send(result);
+  });
+  
+//for view matrial post by tutor
+app.post('/uploadMaterial', verifyToken,tutorVerify,async(req,res)=>{
+    const materialData = req.body;
+    const result = await materialCollection.insertOne(materialData);
+    res.send(result);
+})
+// for tutor his view matrial  elements
+app.get('/uploadMaterial/:email',verifyToken, tutorVerify, async (req, res)=>{
+    const { email } = req.params;
+    console.log(req.params);
+    const result = await materialCollection.find({ email: email }).toArray();
+    res.send(result);
+    console.log(result);
+})
+// for admin materials
+app.get('/admin-material', verifyToken, verifyAdmin, async(req, res)=>{
+    const result = await materialCollection.find().toArray();
     res.send(result);
 })
 
