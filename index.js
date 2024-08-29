@@ -323,17 +323,15 @@ app.get('/admin-material', verifyToken, verifyAdmin, async(req, res)=>{
     res.send(result);
 })
 
+
+
+
+
 app.post('/booking',verifyToken, async(req,res)=>{
     const bookingData = req.body;
     const result = await bookingCollection.insertOne(bookingData);
     res.send(result);
 })
-
-
-
-
-
-
 
 // for check already booked or not
 app.get('/bookings/check/:sessionId', verifyToken, async(req,res)=>{
@@ -342,31 +340,38 @@ app.get('/bookings/check/:sessionId', verifyToken, async(req,res)=>{
     const result = await bookingCollection.findOne({ sessionId , studentEmail: studentEmail});
     res.send(result);
 })
+
 // booking collection find for single Id or data
 app.get('/bookings-payment/:bookingId', async (req, res) => {
     const { bookingId } = req.params;
-    const { studentEmail } = req.query;
+    // const { studentEmail } = req.query;
+    // console.log(bookingId)
 
-    const booking = await bookingCollection.findOne({ 
-        // _id: new ObjectId(bookingId), 
-        studentEmail 
-    });
-    
-    if (!booking) {
-        return res.status(404).send({ message: 'Booking not found' });
+    try {
+        // Convert bookingId to ObjectId
+        const booking = await bookingCollection.findOne({ 
+            _id: new ObjectId(bookingId), 
+            // studentEmail
+        });
+
+        if (!booking) {
+            return res.status(404).send({ message: 'Booking not found' });
+        }
+
+        res.send(booking);
+        console.log(booking)
+    } catch (error) {
+        res.status(500).send({ message: 'Server error', error });
     }
-    
-    res.send(booking);
 });
 
+// ......................for all data get by email wise...........................
 app.get('/bookedSession/:email',verifyToken, async(req,res)=>{
     const { email } = req.params;
     const result = await bookingCollection.find({ studentEmail: email }).toArray();
     res.send(result);
 })
 // for review part by student
-
-
 app.put('/submit-review/:sessionId', verifyToken, async (req, res) => {
     const { sessionId } = req.params;
     const { rating, review, userEmail } = req.body;
