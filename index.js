@@ -223,8 +223,27 @@ app.patch('/users/:id/role', async (req, res) => {
     res.send(result);
  })  
 
-// for All Session for home page
- app.get('/all-collection',  async(req, res)=>{
+
+// for Home page(cardSession) See All button  and pagination method apply 
+app.get('/all-collection', async (req, res) => {
+    // Get query parameters for pagination
+    const page = parseInt(req.query.page) || 1; // default page is 1
+    const limit = parseInt(req.query.limit) || 6; // default limit is 6
+    const skip = (page - 1) * limit;
+  
+    // Fetch paginated results
+    const result = await studySessionCollection.find({ status: 'accepted' })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+  
+    // Send results
+    res.send(result);
+  });
+
+
+//  for All Session for home page
+ app.get('/all-collection-all',  async(req, res)=>{
     const result = await studySessionCollection.find({ status: 'accepted' }).toArray();
     res.send(result);
  })
