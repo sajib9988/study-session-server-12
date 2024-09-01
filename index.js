@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const nodemailer = require('nodemailer')
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken'); 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -14,6 +15,65 @@ const port = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// for send email 
+const sendEmail = (emailAddress, emailData) => {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // Use `true` for port 465, `false` for all other ports
+      auth: {
+        user: process.env.TRANSPORTER_EMAIL,
+        pass: process.env.TRANSPORTER_PASS,
+      },
+    });
+  
+    // Verify connection configuration
+    transporter.verify(function (error, success) {
+      if (error) {
+        console.log('Error verifying transporter:', error);
+      } else {
+        console.log('Server is ready to take our messages');
+        
+        // Email body
+        const mailBody = {
+          from: `"Online Study" <${process.env.TRANSPORTER_EMAIL}>`, // sender address
+          to: emailAddress, // list of receivers
+          subject: emailData.subject, // Subject line
+          html: emailData.message, // html body
+        };
+  
+        // Send email
+        transporter.sendMail(mailBody, (error, info) => {
+          if (error) {
+            console.log('Error sending email:', error);
+          } else {
+            console.log('Email Sent: ' + info.response);
+          }
+        });
+      }
+    });
+  };
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -101,6 +161,16 @@ const tutorVerify = async (req, res, next) => {
                     return res.send({ message: 'User already exists', insertedId: null });
                 }
                 const result = await userCollection.insertOne(user);
+             if(result.insertedId){
+                const emailData = {
+                    subject: 'Welcome to Online Study!',
+                    message: `<h1>Hello ${user.name},</h1><p>Thank you for registering with Online Study. We are excited to have you on board!</p>`
+                  };
+                  
+                  sendEmail(user.email, emailData);
+
+             }
+
                 res.send(result);
             } catch (error) {
                 console.error('Error inserting user:', error);
@@ -159,11 +229,11 @@ app.put('/tutors/:email', verifyToken,  async (req, res) => {
     res.send(result);
     console.log(result);
 });
-// for data get
+// for data get for home page
 app.get('/tutors', async (req,res)=>{
-    const result = await userCollection.find({role: 'Tutor'}).toArray();
+    const result = await userCollection.find({role: 'Tutor' , status: 'Accepted'}).toArray();
     res.send(result);
-    console.log(result)
+    // console.log(result)
 })
 
 //  search option 
@@ -344,9 +414,18 @@ app.get('/admin-material', verifyToken, verifyAdmin, async(req, res)=>{
 
 
 
-
+// for booking Collection data save to database
 
 app.post('/booking',verifyToken, async(req,res)=>{
+     // Get user email from the token payload (you may need to adjust this depending on how you set up your token verification)
+     const userEmail = req.user.email;
+
+     //  user data from the user collection for checking tutor or admin ?
+     const user = await userCollection.findOne({ email: userEmail });
+     const userRole = user.role.toLowerCase(); 
+     if (userRole === 'tutor' || userRole === 'admin') {
+         return res.status(403).send({ message: 'You are not allowed to make bookings' });
+     }
     const bookingData = req.body;
     const result = await bookingCollection.insertOne(bookingData);
     res.send(result);
@@ -472,49 +551,79 @@ app.put('/submit-review/:sessionId', verifyToken, async (req, res) => {
 
 
 // payment data saved database
-app.post('/payment-complete', async (req, res) => {
+app.post('/payment-complete', async (req, res, next) => {
     const { sessionId, sessionTitle, sessionFee, tutorEmail, userEmail, transactionId } = req.body;
-
-    console.log('Payment complete request received:', {
-        sessionId,
-        sessionTitle,
-        sessionFee,
-        tutorEmail,
-        userEmail,
-        transactionId
-    });
-
-    try {
-        // Validate input data
-        if (!sessionId || !sessionTitle || !sessionFee || !tutorEmail || !userEmail || !transactionId) {
-            return res.status(400).json({ error: 'Missing required fields' });
-        }
-
-        // Save payment information
-        const result = await paymentCollection.insertOne({
-            sessionId: new ObjectId(sessionId),
-            sessionTitle,
-            transactionId,
-            studentEmail: userEmail,
-            tutorEmail,
-            amount: parseInt(sessionFee),
-            date: new Date(),
-        });
-
-        console.log('Payment information saved:', result);
-
-        // Update booking status
-        await bookingCollection.updateOne(
-            { _id: new ObjectId(sessionId) },
-            { $set: { status: 'paid' } }
-        );
-
-        res.status(200).json({ success: true, result });
-    } catch (error) {
-        console.error('Error processing payment completion:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+  
+    // Validate input data
+    if (!sessionId || !sessionTitle || !sessionFee || !tutorEmail || !userEmail || !transactionId) {
+      return res.status(400).json({ error: 'Missing required fields' });
     }
-});
+  
+    // Fetch student or tutor details based on email
+    const user = await userCollection.findOne({ email: userEmail });
+  
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+  
+    // Check user role and get the name
+    const userName = user.name || "User"; // Fallback name if not found
+    const userRole = (user.role || "Student").toLowerCase(); // Ensure role is lowercase
+  
+    // Save payment information
+    const result = await paymentCollection.insertOne({
+      sessionId: new ObjectId(sessionId),
+      sessionTitle,
+      transactionId,
+      studentEmail: userEmail,
+      tutorEmail,
+      amount: parseInt(sessionFee),
+      date: new Date(),
+    });
+  
+    console.log('Payment information saved:', result);
+  
+    // Update booking status
+    await bookingCollection.updateOne(
+      { _id: new ObjectId(sessionId) },
+      { $set: { status: 'paid' } }
+    );
+  
+    // Prepare email data for student
+    const studentEmailData = {
+      subject: 'Payment Confirmation - Online Study',
+      message: `
+        <h1>Payment Successful</h1>
+        <p>Dear ${userName},</p>
+        <p>Your payment for the session titled <strong>${sessionTitle}</strong> has been successfully completed.</p>
+        <p>Transaction ID: <strong>${transactionId}</strong></p>
+        <p>Amount: <strong>$${sessionFee}</strong></p>
+        <p>Thank you for choosing Online Study!</p>
+      `,
+    };
+  
+    // Prepare email data for tutor
+    const tutorEmailData = {
+      subject: 'New Payment Received - Online Study',
+      message: `
+        <h1>Payment Received</h1>
+        <p>Dear Tutor,</p>
+        <p>A new payment has been received for your session titled <strong>${sessionTitle}</strong>.</p>
+        <p>${userRole}: <strong>${userName} (${userEmail})</strong></p>
+        <p>Amount: <strong>$${sessionFee}</strong></p>
+        <p>Transaction ID: <strong>${transactionId}</strong></p>
+      `,
+    };
+  
+    // Send email to student
+    sendEmail(userEmail, studentEmailData);
+  
+    // Send email to tutor
+    sendEmail(tutorEmail, tutorEmailData);
+  
+    res.status(200).json({ success: true, result });
+  });
+  
 
 
 // Route to get all payments for a specific email
