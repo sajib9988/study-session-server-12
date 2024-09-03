@@ -13,7 +13,13 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: [
+      'http://localhost:5173',
+      'http://localhost:5174',
+    ],
+  }));
+  
 app.use(express.json());
 
 // for send email 
@@ -102,20 +108,23 @@ app.post('/jwt', async (req, res) => {
   const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
   res.send({ token });
 });
-
 const verifyToken = (req, res, next) => {
-  if (!req.headers.authorization) {
-      return res.status(401).send({ message: 'Unauthorized access' });
-  }
-  const token = req.headers.authorization.split(' ')[1];
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (!req.headers.authorization) {
+      return res.status(401).send({ message: 'Unauthorized access: No token provided' });
+    }
+  
+    const token = req.headers.authorization.split(' ')[1];
+    
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
       if (err) {
-          return res.status(403).send({ message: 'Unauthorized access' });
+        return res.status(403).send({ message: 'Forbidden access: Invalid or expired token' });
       }
-      req.user = decoded;
-      next();
-  });
-};
+      
+      req.user = decoded; 
+      next(); 
+    });
+  };
+  
 
 const verifyAdmin = async (req, res, next) => {
   const email = req.user.email;
