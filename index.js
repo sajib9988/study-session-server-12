@@ -733,7 +733,7 @@ app.delete('/notes-delete/:id', verifyToken, async (req, res) => {
   
   
   // Confirm a successful connection
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } catch (err) {
         console.error('Error connecting to MongoDB:', err);
     }
