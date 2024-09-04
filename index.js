@@ -16,8 +16,11 @@ const port = process.env.PORT || 5000;
 app.use(cors({
     origin: [
       'http://localhost:5173',
-      'http://localhost:5174',
+      
+      'https://study-session-12.web.app',
+      'https://study-session-12.firebaseapp.com'
     ],
+    credentials: false, // allow self-signed certificate
   }));
   
 app.use(express.json());
