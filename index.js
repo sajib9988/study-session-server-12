@@ -225,7 +225,11 @@ const tutorVerify = async (req, res, next) => {
 app.put('/tutors/:email', verifyToken,  async (req, res) => {
     const email = req.params.email;
     const updateData = req.body;
+    const existingUser = await userCollection.findOne({ email });
 
+    if (!existingUser) {
+        return res.status(404).send({ message: 'User not found' });
+    }
     // Check if the user with the given email is already a tutor
     const existingTutor = await userCollection.findOne({ email, role: 'Tutor' });
     if (existingTutor) {
